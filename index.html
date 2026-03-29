@@ -1,0 +1,1667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>StudyQueue</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist+Mono:wght@300;400;500&family=Geist:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<style>
+/*
+  DESIGN DIRECTION: Clinical / Control Room
+  Inspired by mission control dashboards and lab interfaces.
+  Stark white on near-black. Monospaced data readouts.
+  Colored status indicators as the only warmth.
+  Everything feels measured, precise, purposeful.
+*/
+:root {
+  --bg:       #080909;
+  --s1:       #0e1010;
+  --s2:       #141616;
+  --s3:       #1a1d1d;
+  --line:     #232727;
+  --line2:    #2e3333;
+  --text:     #e8edec;
+  --mid:      #8a9494;
+  --dim:      #4a5252;
+  --cyan:     #00e5c8;
+  --cyan-d:   #007a6c;
+  --red:      #ff5f5f;
+  --orange:   #ff9040;
+  --yellow:   #ffd060;
+  --green:    #50e090;
+  --blue:     #60b0ff;
+  --serif:    'Instrument Serif', Georgia, serif;
+  --mono:     'Geist Mono', monospace;
+  --sans:     'Geist', sans-serif;
+  --r:        6px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* Subtle scanline effect */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,229,200,0.008) 2px,
+    rgba(0,229,200,0.008) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--line2); }
+
+/* ══ LAYOUT ══ */
+#app {
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  min-height: 100vh;
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 0 20px 80px;
+}
+
+/* ══ HEADER ══ */
+header {
+  padding: 24px 0 20px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.logo {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.logo-mark {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  color: var(--cyan);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  border: 1px solid var(--cyan-d);
+  padding: 3px 8px;
+  border-radius: 3px;
+}
+.logo-name {
+  font-family: var(--serif);
+  font-size: 1.5rem;
+  font-style: italic;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+
+/* ── HUD ── */
+.hud { display: flex; gap: 1px; }
+.hud-cell {
+  background: var(--s1);
+  border: 1px solid var(--line);
+  padding: 8px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 80px;
+}
+.hud-cell:first-child { border-radius: var(--r) 0 0 var(--r); }
+.hud-cell:last-child  { border-radius: 0 var(--r) var(--r) 0; }
+.hud-cell + .hud-cell { border-left: none; }
+.hud-label {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  color: var(--dim);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.hud-val {
+  font-family: var(--mono);
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text);
+  line-height: 1;
+}
+.hud-cell.pts  .hud-val { color: var(--cyan); }
+.hud-cell.fire .hud-val { color: var(--orange); }
+.hud-cell.rank .hud-val { font-size: 0.72rem; color: var(--yellow); letter-spacing: 0.02em; }
+
+/* ══ NAV ══ */
+nav {
+  display: flex;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 28px;
+  gap: 0;
+}
+.nav-btn {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--dim);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 12px 20px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  margin-bottom: -1px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.nav-btn:hover { color: var(--mid); }
+.nav-btn.active { color: var(--cyan); border-bottom-color: var(--cyan); }
+.nav-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--line2);
+  transition: background 0.15s;
+}
+.nav-btn.active .nav-dot { background: var(--cyan); box-shadow: 0 0 6px var(--cyan); }
+
+.panel { display: none; }
+.panel.active { display: block; animation: panelIn 0.2s ease; }
+@keyframes panelIn { from { opacity: 0; transform: translateY(6px); } }
+
+/* ══ QUEUE HEADER ══ */
+.queue-top {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.queue-title {
+  font-family: var(--serif);
+  font-size: 1.8rem;
+  font-style: italic;
+  color: var(--text);
+  line-height: 1;
+}
+.queue-subtitle {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  color: var(--dim);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.sort-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sort-label {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  color: var(--dim);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-right: 2px;
+}
+.sort-pill {
+  background: var(--s2);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  color: var(--mid);
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.sort-pill:hover { color: var(--text); border-color: var(--line2); }
+.sort-pill.active { background: var(--cyan); color: #000; border-color: var(--cyan); font-weight: 500; }
+
+/* ══ ITEM CARD ══ */
+.item {
+  display: grid;
+  grid-template-columns: 48px 1fr auto;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  margin-bottom: 6px;
+  overflow: hidden;
+  background: var(--s1);
+  transition: border-color 0.15s;
+  animation: itemIn 0.2s ease both;
+}
+@keyframes itemIn { from { opacity: 0; transform: translateX(-8px); } }
+.item:hover { border-color: var(--line2); }
+.item.done { opacity: 0.3; }
+.item.done .item-title { text-decoration: line-through; color: var(--dim); }
+
+/* Index column */
+.item-idx {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: var(--s2);
+  border-right: 1px solid var(--line);
+  padding: 12px 0;
+  font-family: var(--mono);
+  font-size: 1rem;
+  color: var(--dim);
+}
+.item-idx.crit { color: var(--red); }
+.item-idx.warn { color: var(--orange); }
+.item-idx.habit-idx { color: var(--green); font-size: 0.8rem; }
+
+.status-pip {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--line2);
+}
+.status-pip.crit  { background: var(--red);    box-shadow: 0 0 5px var(--red); }
+.status-pip.warn  { background: var(--orange); box-shadow: 0 0 5px var(--orange); }
+.status-pip.ok    { background: var(--green); }
+.status-pip.habit { background: var(--cyan);   box-shadow: 0 0 5px var(--cyan); }
+
+/* Body */
+.item-body { padding: 11px 16px; min-width: 0; }
+.item-title {
+  font-weight: 500;
+  font-size: 0.92rem;
+  margin-bottom: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+}
+.item-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+}
+.chip {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.05em;
+  padding: 2px 7px;
+  border-radius: 2px;
+  border: 1px solid var(--line);
+  background: var(--s2);
+  color: var(--mid);
+  text-transform: uppercase;
+}
+.chip.course  { color: var(--blue);   border-color: rgba(96,176,255,0.25); background: rgba(96,176,255,0.06); }
+.chip.hard    { color: var(--red);    border-color: rgba(255,95,95,0.25);  background: rgba(255,95,95,0.06); }
+.chip.medium  { color: var(--orange); border-color: rgba(255,144,64,0.25); background: rgba(255,144,64,0.06); }
+.chip.easy    { color: var(--green);  border-color: rgba(80,224,144,0.25); background: rgba(80,224,144,0.06); }
+.chip.overdue { color: var(--red);    border-color: rgba(255,95,95,0.4);   background: rgba(255,95,95,0.1); animation: blink 1.8s ease infinite; }
+.chip.soon    { color: var(--orange); border-color: rgba(255,144,64,0.35); background: rgba(255,144,64,0.08); }
+.chip.pts     { color: var(--yellow); border-color: rgba(255,208,96,0.25); background: rgba(255,208,96,0.06); }
+.chip.streak  { color: var(--cyan);   border-color: rgba(0,229,200,0.25);  background: rgba(0,229,200,0.06); }
+.chip.habit   { color: var(--cyan);   border-color: rgba(0,229,200,0.2);   background: rgba(0,229,200,0.04); }
+
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
+/* Score bar */
+.score-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 7px;
+}
+.score-track {
+  flex: 1;
+  max-width: 100px;
+  height: 2px;
+  background: var(--line);
+  border-radius: 1px;
+  overflow: hidden;
+}
+.score-fill {
+  height: 100%;
+  border-radius: 1px;
+  transition: width 0.5s ease;
+}
+.score-text {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  color: var(--dim);
+  white-space: nowrap;
+}
+
+/* Actions */
+.item-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 12px;
+  border-left: 1px solid var(--line);
+}
+.check-btn {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--line2);
+  background: transparent;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  color: transparent;
+  font-size: 11px;
+  transition: all 0.15s;
+}
+.check-btn:hover { border-color: var(--green); color: var(--green); }
+.check-btn.done { background: var(--green); border-color: var(--green); color: #000; }
+.icon-btn {
+  width: 22px; height: 22px;
+  border-radius: 3px;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  color: var(--dim);
+  font-size: 11px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+}
+.icon-btn:hover { color: var(--red); border-color: rgba(255,95,95,0.3); }
+.icon-btn.pause:hover { color: var(--orange); border-color: rgba(255,144,64,0.3); }
+
+/* ══ FORMS ══ */
+.form-card {
+  background: var(--s1);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 24px;
+  max-width: 580px;
+}
+.form-title {
+  font-family: var(--serif);
+  font-size: 1.3rem;
+  font-style: italic;
+  margin-bottom: 20px;
+  color: var(--text);
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+.form-grid .span2 { grid-column: 1 / -1; }
+
+.field label {
+  display: block;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin-bottom: 6px;
+}
+.field input, .field select {
+  width: 100%;
+  background: var(--s2);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 9px 12px;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.15s;
+  -webkit-appearance: none;
+}
+.field input:focus, .field select:focus { border-color: var(--cyan); }
+.field input::placeholder { color: var(--dim); }
+.field select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%234a5252'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 28px;
+  cursor: pointer;
+}
+.field select option { background: var(--s2); }
+
+.preview-box {
+  background: var(--s2);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 10px 14px;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--mid);
+  margin-bottom: 16px;
+  line-height: 1.8;
+}
+.preview-box .hi { color: var(--cyan); }
+
+/* ══ BUTTONS ══ */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 18px;
+  border-radius: var(--r);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s;
+}
+.btn-cyan { background: var(--cyan); color: #000; }
+.btn-cyan:hover { background: #33ead2; }
+.btn-ghost {
+  background: transparent;
+  color: var(--mid);
+  border: 1px solid var(--line);
+}
+.btn-ghost:hover { color: var(--text); border-color: var(--line2); }
+.btn-sm { padding: 6px 13px; font-size: 0.65rem; }
+
+/* ══ HABITS PANEL ══ */
+.habit-row {
+  background: var(--s1);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 14px 18px;
+  margin-bottom: 6px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 16px;
+  animation: itemIn 0.2s ease both;
+}
+.habit-row:hover { border-color: var(--line2); }
+.habit-row.paused { opacity: 0.45; }
+.habit-title { font-weight: 500; font-size: 0.9rem; margin-bottom: 6px; }
+.habit-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.habit-actions { display: flex; gap: 8px; }
+
+/* ══ RANKS PANEL ══ */
+.rank-hero {
+  background: var(--s1);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 24px 28px;
+  margin-bottom: 20px;
+  position: relative;
+  overflow: hidden;
+}
+.rank-hero::after {
+  content: '';
+  position: absolute;
+  top: 0; right: 0;
+  width: 200px; height: 100%;
+  background: radial-gradient(ellipse at right center, rgba(0,229,200,0.06) 0%, transparent 70%);
+  pointer-events: none;
+}
+.rank-name-big {
+  font-family: var(--serif);
+  font-size: 2.2rem;
+  font-style: italic;
+  color: var(--yellow);
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.rank-meta {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--dim);
+  letter-spacing: 0.08em;
+  margin-bottom: 18px;
+}
+.xp-track {
+  height: 3px;
+  background: var(--line);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+.xp-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--cyan-d), var(--cyan));
+  border-radius: 2px;
+  transition: width 1s cubic-bezier(0.34,1.56,0.64,1);
+}
+.xp-labels {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  color: var(--dim);
+}
+
+.rank-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+}
+.rank-tile {
+  background: var(--s1);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 14px 16px;
+}
+.rank-tile.current { border-color: var(--yellow); background: rgba(255,208,96,0.04); }
+.rank-tile.unlocked { border-color: rgba(80,224,144,0.3); }
+.rank-tile.locked { opacity: 0.35; }
+.rank-tile-icon { font-size: 1.3rem; margin-bottom: 6px; }
+.rank-tile-name { font-family: var(--serif); font-style: italic; font-size: 0.95rem; margin-bottom: 2px; }
+.rank-tile-pts  { font-family: var(--mono); font-size: 0.62rem; color: var(--dim); margin-bottom: 5px; }
+.rank-tile-status { font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.08em; text-transform: uppercase; }
+.rank-tile.current  .rank-tile-status { color: var(--yellow); }
+.rank-tile.unlocked .rank-tile-status { color: var(--green); }
+.rank-tile.locked   .rank-tile-status { color: var(--dim); }
+
+/* ══ SETTINGS ══ */
+.settings-section { margin-bottom: 24px; }
+.settings-label {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  color: var(--dim);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.status-line {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--dim);
+  margin-top: 10px;
+  min-height: 1.2em;
+}
+.status-line.ok  { color: var(--green); }
+.status-line.err { color: var(--red); }
+
+.info-grid {
+  display: grid;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--mid);
+  line-height: 1.9;
+}
+.info-grid .row { display: flex; gap: 12px; }
+.info-grid .key { color: var(--dim); min-width: 180px; }
+.info-grid .val { color: var(--cyan); }
+
+/* ══ EMPTY ══ */
+.empty {
+  text-align: center;
+  padding: 60px 20px;
+}
+.empty-glyph {
+  font-family: var(--mono);
+  font-size: 2rem;
+  color: var(--line2);
+  margin-bottom: 12px;
+  font-weight: 300;
+}
+.empty p {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--dim);
+  margin-bottom: 16px;
+  letter-spacing: 0.04em;
+}
+
+/* ══ LOADING ══ */
+.loading-row {
+  display: flex; align-items: center; gap: 10px;
+  font-family: var(--mono); font-size: 0.72rem; color: var(--dim);
+  padding: 20px 0; letter-spacing: 0.06em;
+}
+.spin {
+  width: 14px; height: 14px;
+  border: 1.5px solid var(--line2);
+  border-top-color: var(--cyan);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ══ TOAST ══ */
+#toasts {
+  position: fixed; bottom: 20px; right: 20px;
+  z-index: 9998; display: flex; flex-direction: column; gap: 6px;
+  pointer-events: none;
+}
+.toast {
+  background: var(--s2);
+  border: 1px solid var(--line2);
+  border-left: 2px solid var(--cyan);
+  border-radius: var(--r);
+  padding: 10px 16px;
+  font-size: 0.8rem;
+  max-width: 280px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+  animation: toastIn 0.2s ease;
+}
+.toast.err { border-left-color: var(--red); }
+.toast-t { font-weight: 500; margin-bottom: 2px; }
+.toast-s { font-family: var(--mono); font-size: 0.68rem; color: var(--mid); }
+@keyframes toastIn { from { transform: translateX(16px); opacity: 0; } }
+
+/* ══ POINTS POP ══ */
+.pts-pop {
+  position: fixed;
+  font-family: var(--mono);
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--cyan);
+  pointer-events: none;
+  z-index: 9997;
+  text-shadow: 0 0 12px var(--cyan);
+  animation: ptsPop 1.4s ease forwards;
+}
+@keyframes ptsPop {
+  0%   { opacity: 1; transform: translateY(0); }
+  70%  { opacity: 1; transform: translateY(-55px); }
+  100% { opacity: 0; transform: translateY(-75px); }
+}
+
+/* ══ SYNC INDICATOR ══ */
+#sync-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--dim);
+  transition: background 0.3s, box-shadow 0.3s;
+  margin-left: 8px;
+  flex-shrink: 0;
+}
+#sync-dot.syncing { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); animation: spin 1s linear infinite; border-radius: 0; width: 8px; height: 8px; border: 1.5px solid transparent; border-top-color: var(--yellow); }
+#sync-dot.ok  { background: var(--green); box-shadow: 0 0 5px var(--green); }
+#sync-dot.err { background: var(--red);   box-shadow: 0 0 5px var(--red); }
+
+/* ══ RESPONSIVE ══ */
+@media (max-width: 600px) {
+  header { flex-direction: column; align-items: flex-start; }
+  .hud { width: 100%; }
+  .hud-cell { flex: 1; }
+  .form-grid { grid-template-columns: 1fr; }
+  .form-grid .span2 { grid-column: 1; }
+  .item { grid-template-columns: 36px 1fr auto; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ══ HEADER ══ -->
+  <header>
+    <div class="logo">
+      <div class="logo-mark">SQ</div>
+      <div class="logo-name">StudyQueue</div>
+      <div id="sync-dot" title="Sync status"></div>
+    </div>
+    <div class="hud">
+      <div class="hud-cell pts">
+        <div class="hud-label">Points</div>
+        <div class="hud-val" id="hud-pts">—</div>
+      </div>
+      <div class="hud-cell fire">
+        <div class="hud-label">Streak</div>
+        <div class="hud-val" id="hud-streak">—</div>
+      </div>
+      <div class="hud-cell rank">
+        <div class="hud-label">Rank</div>
+        <div class="hud-val" id="hud-rank">—</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ══ NAV ══ -->
+  <nav>
+    <button class="nav-btn active" data-tab="queue">
+      <div class="nav-dot"></div>Queue
+    </button>
+    <button class="nav-btn" data-tab="add">
+      <div class="nav-dot"></div>Add
+    </button>
+    <button class="nav-btn" data-tab="habits">
+      <div class="nav-dot"></div>Habits
+    </button>
+    <button class="nav-btn" data-tab="ranks">
+      <div class="nav-dot"></div>Ranks
+    </button>
+    <button class="nav-btn" data-tab="settings">
+      <div class="nav-dot"></div>Settings
+    </button>
+  </nav>
+
+  <!-- ══ QUEUE ══ -->
+  <div id="panel-queue" class="panel active">
+    <div class="queue-top">
+      <div>
+        <div class="queue-subtitle">Priority feed</div>
+        <div class="queue-title">Your Queue</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <div class="sort-row">
+          <span class="sort-label">Sort</span>
+          <button class="sort-pill active" data-sort="smart">Smart</button>
+          <button class="sort-pill" data-sort="due">Due</button>
+          <button class="sort-pill" data-sort="difficulty">Difficulty</button>
+          <button class="sort-pill" data-sort="time">Time</button>
+        </div>
+        <button class="btn btn-ghost btn-sm" id="refresh-btn">↻ Sync</button>
+      </div>
+    </div>
+    <div id="queue-list"></div>
+  </div>
+
+  <!-- ══ ADD ASSIGNMENT ══ -->
+  <div id="panel-add" class="panel">
+    <div class="form-card">
+      <div class="form-title">New Assignment</div>
+      <div class="form-grid">
+        <div class="field span2">
+          <label>Title *</label>
+          <input type="text" id="f-title" placeholder="e.g. Project 5: Linked Lists" />
+        </div>
+        <div class="field span2">
+          <label>Course</label>
+          <input type="text" id="f-course" placeholder="e.g. CMSC132" />
+        </div>
+        <div class="field">
+          <label>Due Date *</label>
+          <input type="datetime-local" id="f-due" />
+        </div>
+        <div class="field">
+          <label>Type</label>
+          <select id="f-type">
+            <option value="homework">Homework</option>
+            <option value="project">Project</option>
+            <option value="lab">Lab</option>
+            <option value="exam">Exam / Quiz</option>
+            <option value="reading">Reading</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Difficulty</label>
+          <select id="f-diff">
+            <option value="easy">Easy</option>
+            <option value="medium" selected>Medium</option>
+            <option value="hard">Hard</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Est. Hours</label>
+          <input type="number" id="f-hours" value="2" min="0.5" max="100" step="0.5" />
+        </div>
+      </div>
+      <div class="preview-box" id="add-preview">—</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-cyan" id="add-btn">Add to Queue</button>
+        <button class="btn btn-ghost" id="clear-btn">Clear</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ HABITS ══ -->
+  <div id="panel-habits" class="panel">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+      <div>
+        <div class="queue-subtitle">Daily practice</div>
+        <div class="queue-title">Habits</div>
+      </div>
+      <button class="btn btn-cyan btn-sm" id="show-habit-form-btn">+ New Habit</button>
+    </div>
+
+    <div id="habit-form-wrap" style="display:none;margin-bottom:20px;">
+      <div class="form-card">
+        <div class="form-title">New Habit</div>
+        <div class="form-grid">
+          <div class="field span2">
+            <label>Title *</label>
+            <input type="text" id="h-title" placeholder="e.g. Study latest math topic" />
+          </div>
+          <div class="field">
+            <label>Duration (min)</label>
+            <input type="number" id="h-duration" value="30" min="5" max="480" step="5" />
+          </div>
+          <div class="field">
+            <label>Difficulty</label>
+            <select id="h-diff">
+              <option value="easy">Easy</option>
+              <option value="medium" selected>Medium</option>
+              <option value="hard">Hard</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Repeat every X days</label>
+            <input type="number" id="h-interval" value="1" min="1" max="30" />
+          </div>
+          <div class="field">
+            <label>Category</label>
+            <input type="text" id="h-category" placeholder="e.g. Math" />
+          </div>
+        </div>
+        <div class="preview-box" id="habit-preview">—</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-cyan" id="save-habit-btn">Add Habit</button>
+          <button class="btn btn-ghost" id="cancel-habit-btn">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="habits-list"></div>
+  </div>
+
+  <!-- ══ RANKS ══ -->
+  <div id="panel-ranks" class="panel">
+    <div id="rank-hero-el"></div>
+    <div style="font-family:var(--mono);font-size:0.62rem;color:var(--dim);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:12px;">All Ranks</div>
+    <div class="rank-grid" id="rank-grid-el"></div>
+  </div>
+
+  <!-- ══ SETTINGS ══ -->
+  <div id="panel-settings" class="panel">
+    <div class="form-card" style="max-width:520px;margin-bottom:16px;">
+      <div class="settings-label">Supabase Connection</div>
+      <div class="form-grid" style="margin-bottom:12px;">
+        <div class="field span2">
+          <label>Project URL</label>
+          <input type="url" id="cfg-url" placeholder="https://xxxx.supabase.co" />
+        </div>
+        <div class="field span2">
+          <label>Anon Public Key</label>
+          <input type="password" id="cfg-key" placeholder="eyJ..." />
+        </div>
+      </div>
+      <button class="btn btn-cyan btn-sm" id="save-cfg-btn">Save & Test</button>
+      <div class="status-line" id="cfg-status"></div>
+    </div>
+
+    <div class="form-card" style="max-width:520px;">
+      <div class="settings-label">Points Reference</div>
+      <div class="info-grid">
+        <div class="row"><span class="key">Assignment (on time)</span><span class="val">+20 pts</span></div>
+        <div class="row"><span class="key">Assignment (&gt;24h early)</span><span class="val">+30 pts</span></div>
+        <div class="row"><span class="key">Assignment (&gt;72h early)</span><span class="val">+40 pts</span></div>
+        <div class="row"><span class="key">Assignment (late)</span><span class="val">+10 pts</span></div>
+        <div class="row"><span class="key">Habit (easy / med / hard)</span><span class="val">+3 / +8 / +15 pts</span></div>
+        <div class="row"><span class="key">7-day habit streak bonus</span><span class="val">+3 pts/session</span></div>
+        <div class="row"><span class="key">7-day global streak mult.</span><span class="val">+50% per completion</span></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- #app -->
+
+<div id="toasts"></div>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════════
+// CONFIG — loaded from localStorage so it persists
+// Only the Supabase URL and key are stored locally.
+// All actual data lives in Supabase.
+// ═══════════════════════════════════════════════════════════
+const CFG_KEY = 'sq_config';
+
+function loadCfg() {
+  try { return JSON.parse(localStorage.getItem(CFG_KEY)) || {}; } catch { return {}; }
+}
+function saveCfg(c) { localStorage.setItem(CFG_KEY, JSON.stringify(c)); }
+
+let cfg = loadCfg();
+
+// ═══════════════════════════════════════════════════════════
+// SUPABASE CLIENT
+// We use the Supabase REST API directly with fetch() —
+// no npm package needed. It's just HTTP requests with
+// your API key in the header.
+// ═══════════════════════════════════════════════════════════
+function sb(path, options = {}) {
+  if (!cfg.url || !cfg.key) throw new Error('Supabase not configured');
+  const url = `${cfg.url}/rest/v1/${path}`;
+  return fetch(url, {
+    headers: {
+      'apikey': cfg.key,
+      'Authorization': `Bearer ${cfg.key}`,
+      'Content-Type': 'application/json',
+      'Prefer': options.prefer || 'return=representation',
+      ...options.headers
+    },
+    ...options
+  }).then(async r => {
+    const text = await r.text();
+    const data = text ? JSON.parse(text) : null;
+    if (!r.ok) throw new Error(data?.message || data?.error || `HTTP ${r.status}`);
+    return data;
+  });
+}
+
+// Convenience wrappers
+const db = {
+  select: (table, query = '') => sb(`${table}?${query}`, { method: 'GET' }),
+  insert: (table, body) => sb(table, { method: 'POST', body: JSON.stringify(body) }),
+  update: (table, query, body) => sb(`${table}?${query}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  delete: (table, query) => sb(`${table}?${query}`, { method: 'DELETE', prefer: 'return=minimal' }),
+  upsert: (table, body) => sb(table, { method: 'POST', body: JSON.stringify(body), prefer: 'resolution=merge-duplicates,return=representation' }),
+};
+
+// ═══════════════════════════════════════════════════════════
+// SYNC INDICATOR
+// ═══════════════════════════════════════════════════════════
+let syncTimer;
+function setSyncState(state) {
+  const dot = document.getElementById('sync-dot');
+  dot.className = state;
+  if (state === 'ok') {
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(() => dot.className = '', 2000);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// RANKS
+// ═══════════════════════════════════════════════════════════
+const RANKS = [
+  { name: 'Freshman',       icon: '○',  min: 0      },
+  { name: 'Sophomore',      icon: '◎',  min: 150    },
+  { name: 'Junior',         icon: '●',  min: 400    },
+  { name: 'Senior',         icon: '◈',  min: 800    },
+  { name: 'Honor Roll',     icon: '◆',  min: 1500   },
+  { name: 'Dean\'s List',   icon: '✦',  min: 3000   },
+  { name: 'Valedictorian',  icon: '★',  min: 6000   },
+  { name: 'Chancellor',     icon: '✸',  min: 12000  },
+];
+function getRank(pts) {
+  let r = RANKS[0];
+  for (const rank of RANKS) { if (pts >= rank.min) r = rank; }
+  return r;
+}
+function getNextRank(pts) {
+  for (const rank of RANKS) { if (pts < rank.min) return rank; }
+  return null;
+}
+
+// ═══════════════════════════════════════════════════════════
+// IN-MEMORY CACHE
+// We fetch from Supabase and store locally for rendering.
+// ═══════════════════════════════════════════════════════════
+let cache = {
+  assignments: [],
+  habits: [],
+  habitLogs: {},   // keyed by habit_id
+  gamestate: { points: 0, streak: 0, last_completion_date: null }
+};
+
+// ═══════════════════════════════════════════════════════════
+// LOAD ALL DATA
+// ═══════════════════════════════════════════════════════════
+async function loadAll() {
+  if (!cfg.url || !cfg.key) {
+    renderQueue(); renderHabits(); renderRanks();
+    return;
+  }
+  setSyncState('syncing');
+  try {
+    const [assignments, habits, habitLogs, gs] = await Promise.all([
+      db.select('assignments', 'order=due_date.asc'),
+      db.select('habits', 'order=created_at.asc'),
+      db.select('habit_logs'),
+      db.select('gamestate', 'id=eq.1'),
+    ]);
+    cache.assignments = assignments || [];
+    cache.habits      = habits || [];
+    cache.habitLogs   = {};
+    for (const log of (habitLogs || [])) {
+      cache.habitLogs[log.habit_id] = log;
+    }
+    if (gs && gs[0]) cache.gamestate = gs[0];
+    setSyncState('ok');
+  } catch (e) {
+    setSyncState('err');
+    toast('Sync failed', e.message, true);
+  }
+  updateHUD();
+  renderQueue();
+  renderHabits();
+  renderRanks();
+}
+
+// ═══════════════════════════════════════════════════════════
+// PRIORITY SCORE ALGORITHM
+// ═══════════════════════════════════════════════════════════
+function calcScore(a) {
+  const now = Date.now();
+  const due = new Date(a.due_date).getTime();
+  const hoursLeft = (due - now) / 3600000;
+
+  let urgency;
+  if (hoursLeft <= 0)    urgency = 50;
+  else if (hoursLeft < 6)   urgency = 47;
+  else if (hoursLeft < 12)  urgency = 43;
+  else if (hoursLeft < 24)  urgency = 37;
+  else if (hoursLeft < 48)  urgency = 29;
+  else if (hoursLeft < 72)  urgency = 21;
+  else if (hoursLeft < 120) urgency = 13;
+  else if (hoursLeft < 168) urgency = 7;
+  else urgency = Math.max(0, 7 - (hoursLeft - 168) / 24);
+
+  const diffMap = { easy: 5, medium: 17, hard: 30 };
+  const difficulty = diffMap[a.difficulty] ?? 17;
+  const timeScore  = Math.min(20, (a.estimated_hours || 1) * 2);
+
+  return Math.min(100, Math.round(urgency + difficulty * 0.6 + timeScore * 0.4));
+}
+
+function urgencyOf(a) {
+  const h = (new Date(a.due_date) - Date.now()) / 3600000;
+  if (h < 0)  return 'crit';
+  if (h < 24) return 'warn';
+  return 'ok';
+}
+
+function calcPoints(a) {
+  const diffBase = { easy: 5, medium: 15, hard: 30 };
+  const base = diffBase[a.difficulty] ?? 15;
+  const h = (new Date(a.due_date) - Date.now()) / 3600000;
+  let bonus = 0, bonusLabel = '';
+  if (h > 72)       { bonus = 20; bonusLabel = '+20 early'; }
+  else if (h > 24)  { bonus = 10; bonusLabel = '+10 early'; }
+  else if (h < 0)   { bonus = -10; bonusLabel = '-10 late'; }
+  const gs = cache.gamestate;
+  const streakBonus = Math.floor((gs.streak || 0) / 7) * Math.floor((base + bonus) * 0.5);
+  return { base, bonus, bonusLabel, streakBonus, total: Math.max(0, base + bonus + streakBonus) };
+}
+
+function habitPts(h) {
+  const base = { easy: 3, medium: 8, hard: 15 }[h.difficulty] ?? 8;
+  const log = cache.habitLogs[h.id];
+  const streak = log ? (log.streak || 0) : 0;
+  const streakBonus = Math.floor(streak / 7) * 3;
+  return { base, streakBonus, total: base + streakBonus, streak };
+}
+
+function habitDueToday(h) {
+  if (h.paused) return false;
+  const log = cache.habitLogs[h.id];
+  if (!log || !log.last_completed) return true;
+  const last = new Date(log.last_completed);
+  const today = new Date(); today.setHours(0,0,0,0); last.setHours(0,0,0,0);
+  return Math.floor((today - last) / 86400000) >= h.interval_days;
+}
+
+function daysUntilHabit(h) {
+  const log = cache.habitLogs[h.id];
+  if (!log || !log.last_completed) return 0;
+  const last = new Date(log.last_completed);
+  last.setHours(0,0,0,0);
+  const today = new Date(); today.setHours(0,0,0,0);
+  return Math.max(0, h.interval_days - Math.floor((today - last) / 86400000));
+}
+
+// ═══════════════════════════════════════════════════════════
+// SORT
+// ═══════════════════════════════════════════════════════════
+let currentSort = 'smart';
+
+function sortedAssignments() {
+  const active = cache.assignments.filter(a => !a.completed);
+  const done   = cache.assignments.filter(a => a.completed);
+  const sorters = {
+    smart:      (a,b) => calcScore(b) - calcScore(a),
+    due:        (a,b) => new Date(a.due_date) - new Date(b.due_date),
+    difficulty: (a,b) => ({hard:3,medium:2,easy:1}[b.difficulty]||2) - ({hard:3,medium:2,easy:1}[a.difficulty]||2),
+    time:       (a,b) => (b.estimated_hours||0) - (a.estimated_hours||0),
+  };
+  return [...active.sort(sorters[currentSort] || sorters.smart), ...done];
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER QUEUE
+// ═══════════════════════════════════════════════════════════
+function renderQueue() {
+  const el = document.getElementById('queue-list');
+
+  if (!cfg.url || !cfg.key) {
+    el.innerHTML = `<div class="empty"><div class="empty-glyph">⌀</div><p>Configure Supabase in Settings to get started.</p><button class="btn btn-cyan btn-sm" onclick="switchTab('settings')">Open Settings</button></div>`;
+    return;
+  }
+
+  // Due habits appear at top as virtual items
+  const dueHabits = cache.habits.filter(habitDueToday).map(h => ({
+    _isHabit: true, _habit: h,
+    id: 'habit_' + h.id,
+    title: h.title,
+    course: h.category,
+    difficulty: h.difficulty,
+    estimated_hours: h.duration / 60,
+    type: 'habit',
+    due_date: new Date().toISOString(),
+    completed: false,
+  }));
+
+  const list = [...dueHabits, ...sortedAssignments()];
+
+  if (!list.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-glyph">—</div><p>Queue empty. Nothing due.</p><button class="btn btn-cyan btn-sm" onclick="switchTab('add')">Add Assignment</button></div>`;
+    return;
+  }
+
+  let idx = 0;
+  el.innerHTML = list.map(a => {
+    if (!a.completed) idx++;
+    const isHabit  = !!a._isHabit;
+    const urgency  = isHabit ? 'habit' : urgencyOf(a);
+    const score    = isHabit ? 35 : calcScore(a);
+    const pts      = isHabit ? habitPts(a._habit).total : calcPoints(a).total;
+    const dueLabel = isHabit ? 'today' : fmtDue(a.due_date);
+    const log      = isHabit ? (cache.habitLogs[a._habit.id] || {}) : {};
+    const barColor = score > 70 ? 'var(--red)' : score > 40 ? 'var(--orange)' : 'var(--green)';
+
+    const onCheck = isHabit
+      ? `completeHabit('${a._habit.id}', event)`
+      : `completeAssignment('${a.id}', event)`;
+    const onDelete = isHabit
+      ? `togglePauseHabit('${a._habit.id}')`
+      : `deleteAssignment('${a.id}')`;
+    const deleteIcon = isHabit ? '⏸' : '✕';
+
+    return `
+    <div class="item ${a.completed ? 'done' : ''}" id="item-${a.id}">
+      <div class="item-idx ${isHabit ? 'habit-idx' : urgency === 'crit' ? 'crit' : urgency === 'warn' ? 'warn' : ''}">
+        ${a.completed ? '✓' : isHabit ? '∞' : idx}
+        <div class="status-pip ${urgency}"></div>
+      </div>
+      <div class="item-body">
+        <div class="item-title">${esc(a.title)}</div>
+        <div class="item-chips">
+          ${a.course ? `<span class="chip course">${esc(a.course)}</span>` : ''}
+          <span class="chip ${a.difficulty}">${a.difficulty}</span>
+          <span class="chip">${a.estimated_hours < 1 ? Math.round(a.estimated_hours*60)+'m' : a.estimated_hours+'h'}</span>
+          <span class="chip">${a.type}</span>
+          <span class="chip ${urgency === 'crit' ? 'overdue' : urgency === 'warn' ? 'soon' : ''}">${dueLabel}</span>
+          ${isHabit && log.streak > 0 ? `<span class="chip streak">🔥 ${log.streak}</span>` : ''}
+          ${isHabit ? `<span class="chip habit">habit</span>` : ''}
+          ${!a.completed ? `<span class="chip pts">+${pts}</span>` : ''}
+        </div>
+        ${!a.completed ? `
+        <div class="score-row">
+          <div class="score-track"><div class="score-fill" style="width:${score}%;background:${barColor}"></div></div>
+          <span class="score-text">${isHabit ? 'habit' : 'priority'} ${score}/100</span>
+        </div>` : ''}
+      </div>
+      <div class="item-actions">
+        <button class="check-btn ${a.completed ? 'done' : ''}" onclick="${onCheck}" title="Complete">✓</button>
+        <button class="icon-btn ${isHabit ? 'pause' : ''}" onclick="${onDelete}" title="${isHabit ? 'Pause' : 'Delete'}">${deleteIcon}</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+// COMPLETE ASSIGNMENT
+// ═══════════════════════════════════════════════════════════
+async function completeAssignment(id, event) {
+  const a = cache.assignments.find(x => x.id === id);
+  if (!a || a.completed) return;
+
+  const pts = calcPoints(a);
+  a.completed = true; // optimistic
+  renderQueue();
+
+  setSyncState('syncing');
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const gs = cache.gamestate;
+
+    // Update streak
+    let newStreak = gs.streak || 0;
+    if (gs.last_completion_date) {
+      const yesterday = new Date(); yesterday.setDate(yesterday.getDate()-1);
+      const yStr = yesterday.toISOString().split('T')[0];
+      if (gs.last_completion_date === today) { /* no change */ }
+      else if (gs.last_completion_date === yStr) newStreak++;
+      else newStreak = 1;
+    } else { newStreak = 1; }
+
+    const newPoints = (gs.points || 0) + pts.total;
+
+    await Promise.all([
+      db.update('assignments', `id=eq.${id}`, { completed: true, completed_at: new Date().toISOString() }),
+      db.update('gamestate', 'id=eq.1', { points: newPoints, streak: newStreak, last_completion_date: today }),
+    ]);
+
+    cache.gamestate = { ...gs, points: newPoints, streak: newStreak, last_completion_date: today };
+    setSyncState('ok');
+    updateHUD(); renderQueue(); renderRanks();
+
+    ptsPopAt(event, pts.total);
+    let sub = `${pts.base} base`;
+    if (pts.bonus !== 0) sub += ` · ${pts.bonusLabel}`;
+    if (pts.streakBonus > 0) sub += ` · +${pts.streakBonus} streak`;
+    toast(`+${pts.total} points`, sub);
+  } catch(e) {
+    a.completed = false;
+    setSyncState('err');
+    toast('Error', e.message, true);
+    renderQueue();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// DELETE ASSIGNMENT
+// ═══════════════════════════════════════════════════════════
+async function deleteAssignment(id) {
+  if (!confirm('Remove this assignment?')) return;
+  cache.assignments = cache.assignments.filter(a => a.id !== id);
+  renderQueue();
+  setSyncState('syncing');
+  try {
+    await db.delete('assignments', `id=eq.${id}`);
+    setSyncState('ok');
+  } catch(e) {
+    setSyncState('err'); toast('Error', e.message, true);
+    await loadAll();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// ADD ASSIGNMENT
+// ═══════════════════════════════════════════════════════════
+function updateAddPreview() {
+  const diff  = document.getElementById('f-diff').value;
+  const hours = parseFloat(document.getElementById('f-hours').value) || 1;
+  const due   = document.getElementById('f-due').value;
+  const mock  = { difficulty: diff, estimated_hours: hours, due_date: due ? new Date(due).toISOString() : new Date(Date.now()+48*3600000).toISOString() };
+  const pts   = calcPoints(mock);
+  const score = calcScore(mock);
+  document.getElementById('add-preview').innerHTML =
+    `Earn <span class="hi">+${pts.total} pts</span> on completion` +
+    (pts.bonus !== 0 ? ` (${pts.bonusLabel})` : '') +
+    ` &nbsp;·&nbsp; Priority score: <span class="hi">${score}/100</span>`;
+}
+
+['f-diff','f-hours','f-due'].forEach(id => {
+  const el = document.getElementById(id);
+  el.addEventListener('input', updateAddPreview);
+  el.addEventListener('change', updateAddPreview);
+});
+updateAddPreview();
+
+document.getElementById('add-btn').addEventListener('click', async () => {
+  const title = document.getElementById('f-title').value.trim();
+  const due   = document.getElementById('f-due').value;
+  if (!title) { toast('Missing title', '', true); return; }
+  if (!due)   { toast('Missing due date', '', true); return; }
+
+  const newA = {
+    id: `a_${Date.now()}_${Math.random().toString(36).slice(2,6)}`,
+    title,
+    course:           document.getElementById('f-course').value.trim() || null,
+    due_date:         new Date(due).toISOString(),
+    difficulty:       document.getElementById('f-diff').value,
+    estimated_hours:  parseFloat(document.getElementById('f-hours').value) || 1,
+    type:             document.getElementById('f-type').value,
+    completed:        false,
+  };
+
+  setSyncState('syncing');
+  try {
+    await db.insert('assignments', newA);
+    cache.assignments.push(newA);
+    setSyncState('ok');
+    switchTab('queue');
+    renderQueue();
+    toast('Assignment added', `Priority ${calcScore(newA)}/100`);
+    document.getElementById('clear-btn').click();
+  } catch(e) {
+    setSyncState('err'); toast('Error saving', e.message, true);
+  }
+});
+
+document.getElementById('clear-btn').addEventListener('click', () => {
+  ['f-title','f-course','f-due'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f-diff').value = 'medium';
+  document.getElementById('f-hours').value = '2';
+  document.getElementById('f-type').value = 'homework';
+  updateAddPreview();
+});
+
+// ═══════════════════════════════════════════════════════════
+// HABITS
+// ═══════════════════════════════════════════════════════════
+function renderHabits() {
+  const el = document.getElementById('habits-list');
+  if (!cache.habits.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-glyph">∞</div><p>No habits yet.</p></div>`;
+    return;
+  }
+  el.innerHTML = cache.habits.map(h => {
+    const log    = cache.habitLogs[h.id] || {};
+    const pts    = habitPts(h);
+    const due    = habitDueToday(h);
+    return `
+    <div class="habit-row ${h.paused ? 'paused' : ''}">
+      <div>
+        <div class="habit-title">${esc(h.title)}</div>
+        <div class="habit-chips">
+          <span class="chip ${h.difficulty}">${h.difficulty}</span>
+          <span class="chip">${h.duration}min</span>
+          <span class="chip">every ${h.interval_days}d</span>
+          ${h.category ? `<span class="chip course">${esc(h.category)}</span>` : ''}
+          ${log.streak > 0 ? `<span class="chip streak">🔥 ${log.streak} streak</span>` : ''}
+          <span class="chip pts">+${pts.total} pts</span>
+          <span class="chip" style="color:${due ? 'var(--green)' : 'var(--dim)'}">
+            ${h.paused ? 'paused' : due ? '● due today' : `next in ${daysUntilHabit(h)}d`}
+          </span>
+        </div>
+      </div>
+      <div class="habit-actions">
+        <button class="btn btn-ghost btn-sm" onclick="togglePauseHabit('${h.id}')">${h.paused ? '▶ Resume' : '⏸ Pause'}</button>
+        <button class="icon-btn" onclick="deleteHabit('${h.id}')" title="Delete">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function completeHabit(id, event) {
+  const h = cache.habits.find(x => x.id === id);
+  if (!h || !habitDueToday(h)) return;
+
+  const pts   = habitPts(h);
+  const today = new Date().toISOString().split('T')[0];
+  const log   = cache.habitLogs[id] || { habit_id: id, streak: 0, last_completed: null };
+
+  // Calculate new habit streak
+  let newHabitStreak = 1;
+  if (log.last_completed) {
+    const last = new Date(log.last_completed); last.setHours(0,0,0,0);
+    const daysSince = Math.floor((new Date().setHours(0,0,0,0) - last) / 86400000);
+    newHabitStreak = daysSince <= h.interval_days ? (log.streak || 0) + 1 : 1;
+  }
+
+  // Global streak
+  const gs = cache.gamestate;
+  let newGlobalStreak = gs.streak || 0;
+  if (gs.last_completion_date && gs.last_completion_date !== today) {
+    const yesterday = new Date(); yesterday.setDate(yesterday.getDate()-1);
+    newGlobalStreak = gs.last_completion_date === yesterday.toISOString().split('T')[0]
+      ? newGlobalStreak + 1 : 1;
+  } else if (!gs.last_completion_date) { newGlobalStreak = 1; }
+
+  const newPoints = (gs.points || 0) + pts.total;
+
+  // Optimistic update
+  cache.habitLogs[id] = { habit_id: id, streak: newHabitStreak, last_completed: today };
+  cache.gamestate = { ...gs, points: newPoints, streak: newGlobalStreak, last_completion_date: today };
+  updateHUD(); renderQueue(); renderHabits();
+
+  setSyncState('syncing');
+  try {
+    await Promise.all([
+      db.upsert('habit_logs', { habit_id: id, streak: newHabitStreak, last_completed: today }),
+      db.update('gamestate', 'id=eq.1', { points: newPoints, streak: newGlobalStreak, last_completion_date: today }),
+    ]);
+    setSyncState('ok');
+    ptsPopAt(event, pts.total);
+    toast(`+${pts.total} pts — habit done`, `${newHabitStreak} day streak 🔥`);
+  } catch(e) {
+    setSyncState('err'); toast('Sync error', e.message, true);
+    await loadAll();
+  }
+}
+
+async function togglePauseHabit(id) {
+  const h = cache.habits.find(x => x.id === id);
+  if (!h) return;
+  h.paused = !h.paused;
+  renderHabits(); renderQueue();
+  setSyncState('syncing');
+  try {
+    await db.update('habits', `id=eq.${id}`, { paused: h.paused });
+    setSyncState('ok');
+  } catch(e) { setSyncState('err'); toast('Error', e.message, true); await loadAll(); }
+}
+
+async function deleteHabit(id) {
+  if (!confirm('Delete this habit?')) return;
+  cache.habits = cache.habits.filter(h => h.id !== id);
+  delete cache.habitLogs[id];
+  renderHabits(); renderQueue();
+  setSyncState('syncing');
+  try {
+    await Promise.all([
+      db.delete('habits', `id=eq.${id}`),
+      db.delete('habit_logs', `habit_id=eq.${id}`),
+    ]);
+    setSyncState('ok');
+  } catch(e) { setSyncState('err'); toast('Error', e.message, true); await loadAll(); }
+}
+
+// Habit form
+function updateHabitPreview() {
+  const diff     = document.getElementById('h-diff').value;
+  const duration = parseInt(document.getElementById('h-duration').value) || 30;
+  const interval = parseInt(document.getElementById('h-interval').value) || 1;
+  const pts = { easy:3, medium:8, hard:15 }[diff] ?? 8;
+  document.getElementById('habit-preview').innerHTML =
+    `Each session earns <span class="hi">+${pts} pts</span> base &nbsp;·&nbsp; ` +
+    `Repeats every <span class="hi">${interval}</span> day${interval > 1 ? 's' : ''}`;
+}
+
+document.getElementById('show-habit-form-btn').addEventListener('click', () => {
+  document.getElementById('habit-form-wrap').style.display = 'block';
+  document.getElementById('show-habit-form-btn').style.display = 'none';
+  document.getElementById('h-title').focus();
+  updateHabitPreview();
+});
+document.getElementById('cancel-habit-btn').addEventListener('click', () => {
+  document.getElementById('habit-form-wrap').style.display = 'none';
+  document.getElementById('show-habit-form-btn').style.display = '';
+});
+['h-diff','h-duration','h-interval'].forEach(id => {
+  document.getElementById(id).addEventListener('input', updateHabitPreview);
+});
+
+document.getElementById('save-habit-btn').addEventListener('click', async () => {
+  const title = document.getElementById('h-title').value.trim();
+  if (!title) { toast('Missing title', '', true); return; }
+  const newH = {
+    id:           `h_${Date.now()}_${Math.random().toString(36).slice(2,6)}`,
+    title,
+    duration:     parseInt(document.getElementById('h-duration').value) || 30,
+    difficulty:   document.getElementById('h-diff').value,
+    interval_days:parseInt(document.getElementById('h-interval').value) || 1,
+    category:     document.getElementById('h-category').value.trim() || null,
+    paused:       false,
+  };
+  setSyncState('syncing');
+  try {
+    await db.insert('habits', newH);
+    cache.habits.push(newH);
+    setSyncState('ok');
+    renderHabits(); renderQueue();
+    // reset form
+    ['h-title','h-category'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('h-duration').value = '30';
+    document.getElementById('h-diff').value = 'medium';
+    document.getElementById('h-interval').value = '1';
+    document.getElementById('habit-form-wrap').style.display = 'none';
+    document.getElementById('show-habit-form-btn').style.display = '';
+    toast('Habit added', `+${newH.duration}min daily`);
+  } catch(e) { setSyncState('err'); toast('Error saving', e.message, true); }
+});
+
+// ═══════════════════════════════════════════════════════════
+// RANKS
+// ═══════════════════════════════════════════════════════════
+function renderRanks() {
+  const pts      = cache.gamestate.points || 0;
+  const rank     = getRank(pts);
+  const next     = getNextRank(pts);
+  const pct      = next ? Math.min(100, ((pts - rank.min) / (next.min - rank.min)) * 100) : 100;
+
+  document.getElementById('rank-hero-el').innerHTML = `
+    <div class="rank-hero" style="margin-bottom:20px;">
+      <div class="rank-name-big">${rank.icon} ${rank.name}</div>
+      <div class="rank-meta">${pts.toLocaleString()} points &nbsp;·&nbsp; ${cache.gamestate.streak || 0} day streak</div>
+      <div class="xp-track"><div class="xp-fill" style="width:${pct}%"></div></div>
+      <div class="xp-labels">
+        <span>${rank.min.toLocaleString()}</span>
+        ${next ? `<span>${pts.toLocaleString()} / ${next.min.toLocaleString()} → ${next.icon} ${next.name}</span>` : `<span>MAX RANK</span>`}
+      </div>
+    </div>`;
+
+  document.getElementById('rank-grid-el').innerHTML = RANKS.map(r => {
+    const unlocked = pts >= r.min;
+    const current  = r.name === rank.name;
+    const cls = current ? 'current' : unlocked ? 'unlocked' : 'locked';
+    return `
+    <div class="rank-tile ${cls}">
+      <div class="rank-tile-icon">${r.icon}</div>
+      <div class="rank-tile-name">${r.name}</div>
+      <div class="rank-tile-pts">${r.min.toLocaleString()}+ pts</div>
+      <div class="rank-tile-status">${current ? '◉ CURRENT' : unlocked ? '✓ UNLOCKED' : '⬜ LOCKED'}</div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+// HUD
+// ═══════════════════════════════════════════════════════════
+function updateHUD() {
+  const gs   = cache.gamestate;
+  const rank = getRank(gs.points || 0);
+  document.getElementById('hud-pts').textContent    = (gs.points || 0).toLocaleString();
+  document.getElementById('hud-streak').textContent = (gs.streak || 0) + 'd';
+  document.getElementById('hud-rank').textContent   = rank.name;
+}
+
+// ═══════════════════════════════════════════════════════════
+// SETTINGS
+// ═══════════════════════════════════════════════════════════
+if (cfg.url) document.getElementById('cfg-url').value = cfg.url;
+if (cfg.key) document.getElementById('cfg-key').placeholder = '(saved — enter new to update)';
+
+document.getElementById('save-cfg-btn').addEventListener('click', async () => {
+  const url = document.getElementById('cfg-url').value.trim().replace(/\/$/, '');
+  const key = document.getElementById('cfg-key').value.trim();
+  const status = document.getElementById('cfg-status');
+
+  if (!url) { status.textContent = 'URL required'; status.className = 'status-line err'; return; }
+  if (key) cfg.key = key;
+  cfg.url = url;
+  saveCfg(cfg);
+
+  status.textContent = 'Testing connection…';
+  status.className = 'status-line';
+  try {
+    const gs = await db.select('gamestate', 'id=eq.1');
+    status.textContent = '✓ Connected successfully';
+    status.className = 'status-line ok';
+    await loadAll();
+  } catch(e) {
+    status.textContent = `✗ ${e.message}`;
+    status.className = 'status-line err';
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════════════════════
+document.querySelectorAll('.nav-btn').forEach(btn => {
+  btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+});
+
+function switchTab(name) {
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === `panel-${name}`));
+  if (name === 'ranks') renderRanks();
+  if (name === 'habits') renderHabits();
+}
+
+// Sort buttons
+document.querySelectorAll('.sort-pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    currentSort = btn.dataset.sort;
+    document.querySelectorAll('.sort-pill').forEach(b => b.classList.toggle('active', b === btn));
+    renderQueue();
+  });
+});
+
+document.getElementById('refresh-btn').addEventListener('click', loadAll);
+
+// ═══════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════
+function toast(title, sub = '', err = false) {
+  const el = document.createElement('div');
+  el.className = `toast${err ? ' err' : ''}`;
+  el.innerHTML = `<div class="toast-t">${title}</div>${sub ? `<div class="toast-s">${sub}</div>` : ''}`;
+  document.getElementById('toasts').appendChild(el);
+  setTimeout(() => { el.style.transition = 'opacity 0.3s'; el.style.opacity = '0'; }, 3000);
+  setTimeout(() => el.remove(), 3400);
+}
+
+function ptsPopAt(event, pts) {
+  const rect = event.target.getBoundingClientRect();
+  const el = document.createElement('div');
+  el.className = 'pts-pop';
+  el.textContent = `+${pts}`;
+  el.style.left = rect.left + 'px';
+  el.style.top  = (rect.top + window.scrollY) + 'px';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1500);
+}
+
+function fmtDue(iso) {
+  if (!iso) return '—';
+  const due = new Date(iso), now = new Date();
+  const h = (due - now) / 3600000;
+  if (h < 0)   return `${Math.abs(Math.floor(h/24))}d overdue`;
+  if (h < 1)   return `<1h`;
+  if (h < 24)  return `${Math.floor(h)}h`;
+  if (h < 48)  return `tomorrow`;
+  return due.toLocaleDateString([], { weekday:'short', month:'short', day:'numeric' });
+}
+
+function esc(s) {
+  return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// Enter key on forms
+document.getElementById('f-title').addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('add-btn').click(); });
+document.getElementById('h-title').addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('save-habit-btn').click(); });
+
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
+updateHUD();
+loadAll();
+</script>
+</body>
+</html>
