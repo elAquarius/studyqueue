@@ -76,7 +76,8 @@ body::before {
   min-height: 100vh;
   max-width: 1040px;
   margin: 0 auto;
-  padding: 0 20px 80px;
+  padding: 0 20px env(safe-area-inset-bottom, 80px);
+  padding-bottom: max(80px, env(safe-area-inset-bottom, 80px));
 }
 
 /* ══ HEADER ══ */
@@ -700,13 +701,141 @@ nav {
 #sync-dot.err { background: var(--red);   box-shadow: 0 0 5px var(--red); }
 
 /* ══ RESPONSIVE ══ */
-@media (max-width: 600px) {
-  header { flex-direction: column; align-items: flex-start; }
+
+/* ── Tablet (≤768px) ── */
+@media (max-width: 768px) {
+  #app { padding: 0 16px 100px; }
+
+  /* Header stacks logo above HUD */
+  header {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 16px 0 14px;
+    gap: 12px;
+  }
   .hud { width: 100%; }
-  .hud-cell { flex: 1; }
+  .hud-cell { flex: 1; min-width: 0; }
+  .hud-val { font-size: 0.9rem; }
+
+  /* Nav scrolls horizontally — no wrapping, no text cut-off */
+  nav {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: 0;
+  }
+  nav::-webkit-scrollbar { display: none; }
+  .nav-btn {
+    padding: 10px 14px;
+    font-size: 0.65rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* Queue header stacks title above sort controls */
+  .queue-top {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .queue-title { font-size: 1.4rem; }
+
+  /* Sort row scrolls horizontally on small screens */
+  .sort-row {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    width: 100%;
+    padding-bottom: 2px;
+  }
+  .sort-row::-webkit-scrollbar { display: none; }
+
+  /* Item cards — tighter index column */
+  .item { grid-template-columns: 40px 1fr auto; }
+  .item-idx { font-size: 0.85rem; }
+  .item-body { padding: 10px 12px; }
+  .item-title { font-size: 0.88rem; }
+  .item-actions { padding: 8px 10px; gap: 5px; }
+
+  /* Forms go single column */
   .form-grid { grid-template-columns: 1fr; }
   .form-grid .span2 { grid-column: 1; }
-  .item { grid-template-columns: 36px 1fr auto; }
+  .form-card { padding: 18px 16px; }
+
+  /* Habits stack actions below content on narrow screens */
+  .habit-row { grid-template-columns: 1fr; gap: 10px; }
+  .habit-actions { justify-content: flex-start; }
+
+  /* Rank grid 2 columns */
+  .rank-grid { grid-template-columns: repeat(2, 1fr); }
+  .rank-hero { padding: 18px 20px; }
+  .rank-name-big { font-size: 1.7rem; }
+
+  /* Toasts full-width at bottom */
+  #toasts { left: 12px; right: 12px; bottom: 12px; }
+  .toast { max-width: 100%; }
+
+  /* Settings info grid wraps */
+  .info-grid .row { flex-direction: column; gap: 2px; }
+  .info-grid .key { min-width: unset; }
+}
+
+/* ── Mobile (≤480px) ── */
+@media (max-width: 480px) {
+  #app { padding: 0 12px 90px; }
+
+  /* Compact header */
+  .logo-name { font-size: 1.2rem; }
+  .logo-mark { font-size: 0.62rem; padding: 2px 6px; }
+
+  /* HUD: show only values, hide labels to save space */
+  .hud-label { display: none; }
+  .hud-cell {
+    padding: 8px 10px;
+    flex-direction: row;
+    gap: 5px;
+    align-items: center;
+    justify-content: center;
+  }
+  .hud-val { font-size: 0.85rem; }
+
+  /* Tighter nav */
+  .nav-btn { padding: 10px 12px; font-size: 0.62rem; }
+
+  /* Item cards — minimal padding */
+  .item { grid-template-columns: 34px 1fr auto; }
+  .item-idx { font-size: 0.78rem; min-width: 34px; }
+  .item-body { padding: 9px 10px; }
+  .item-title { font-size: 0.85rem; margin-bottom: 5px; }
+  .chip { font-size: 0.58rem; padding: 2px 5px; }
+
+  /* Score bar hidden on very small screens to save vertical space */
+  .score-row { display: none; }
+
+  /* Larger tap targets for check/delete buttons */
+  .check-btn { width: 32px; height: 32px; font-size: 13px; }
+  .icon-btn  { width: 28px; height: 28px; font-size: 12px; }
+
+  /* Forms */
+  .form-card { padding: 16px 14px; border-radius: var(--r); }
+  .form-title { font-size: 1.1rem; margin-bottom: 14px; }
+  .field input, .field select {
+    font-size: 16px; /* prevents iOS zoom on focus */
+    padding: 11px 12px;
+  }
+  .btn { padding: 11px 16px; font-size: 0.7rem; }
+  .btn-sm { padding: 9px 13px; }
+
+  /* Rank grid single column on tiny screens */
+  .rank-grid { grid-template-columns: 1fr; }
+  .rank-name-big { font-size: 1.4rem; }
+
+  /* Queue header */
+  .queue-title { font-size: 1.2rem; }
+  .queue-subtitle { font-size: 0.6rem; }
+
+  /* Habit rows */
+  .habit-title { font-size: 0.85rem; }
 }
 </style>
 </head>
